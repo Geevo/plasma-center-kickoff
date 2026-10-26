@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Open the KDE Plasma Application Launcher (Kickoff) popup centred on its
+# panel instead of over the launcher button.
+#
+#   plasma-center-kickoff          show current state
+#   plasma-center-kickoff --set    apply the patch (re-run after Plasma updates)
+#   plasma-center-kickoff --unset  restore stock behaviour
+
+set -euo pipefail
+
+FILE=/usr/share/plasma/shells/org.kde.plasma.desktop/contents/applet/CompactApplet.qml
+STOCK='        visualParent: root.compactRepresentation'
+PATCHED='        visualParent: Plasmoid.pluginName === "org.kde.plasma.kickoff" ? (root.Window.window?.contentItem ?? root.compactRepresentation) : root.compactRepresentation'
+
+state() {
+    if grep -qxF "$PATCHED" "$FILE"; then echo set
+    elif grep -qxF "$STOCK" "$FILE"; then echo unset
+    else echo unknown
+    fi
+}
+
+# Replace exactly one line $1 with $2 in $FILE (as root, keeping owner/perms/SELinux label).
+swap_line() {
+    local tmp
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' RETURN
+    awk -v from="$1" -v to="$2" '$0 == from { $0 = to; n++ } { print } END { exit n != 1 }' "$FILE" > "$tmp"
+    sudo tee "$FILE" < "$tmp" > /dev/null
+}
+
+restart_shell() {
+    echo "Restarting plasmashell..."
+    # Make sure systemd starts plasmashell on the right Wayland socket
+    # (a stale value here makes the panel vanish).
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        systemctl --user import-environment WAYLAND_DISPLAY
+    fi
+    systemctl --user restart plasma-plasmashell
+}
+
+case "${1:-}" in
+"")
+    s=$(state)
+    case "$s" in
+    set)     echo "Centred launcher: SET" ;;
+    unset)   echo "Centred launcher: NOT SET (stock)" ;;
+    unknown) echo "Centred launcher: UNKNOWN (Plasma changed $FILE; patch needs updating)" ;;
+    esac
+    case "$s" in set) exit 0 ;; unset) exit 1 ;; *) exit 2 ;; esac
+    ;;
+--set)
+    case "$(state)" in
+    set)     echo "Already set."; exit 0 ;;
+    unset)   swap_line "$STOCK" "$PATCHED"; echo "Set." ;;
+    unknown) echo "Can't patch: Plasma changed $FILE and the expected line isn't there." >&2; exit 2 ;;
+    esac
+    restart_shell
+    ;;
+--unset)
+    case "$(state)" in
+    unset)   echo "Already unset."; exit 0 ;;
+    set)     swap_line "$PATCHED" "$STOCK"; echo "Unset." ;;
+    unknown) echo "Can't unset: $FILE doesn't contain the patched or stock line." >&2; exit 2 ;;
+    esac
+    restart_shell
+    ;;
+-h|--help)
+    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+*)
+    echo "Usage: $(basename "$0") [--set|--unset]" >&2
+    exit 64
+    ;;
+esac
