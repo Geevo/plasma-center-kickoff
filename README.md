@@ -24,9 +24,25 @@ Plasma's own positioning code then centres the menu on the panel. So it follows 
 
 ## Install
 
+No clone needed, with curl:
+
+```bash
+curl -fsSL --create-dirs -o ~/.local/bin/plasma-center-kickoff https://raw.githubusercontent.com/Geevo/plasma-center-kickoff/main/plasma-center-kickoff && chmod +x ~/.local/bin/plasma-center-kickoff
+```
+
+or wget:
+
+```bash
+mkdir -p ~/.local/bin && wget -qO ~/.local/bin/plasma-center-kickoff https://raw.githubusercontent.com/Geevo/plasma-center-kickoff/main/plasma-center-kickoff && chmod +x ~/.local/bin/plasma-center-kickoff
+```
+
+Or from a clone:
+
 ```bash
 install -Dm755 plasma-center-kickoff ~/.local/bin/plasma-center-kickoff
 ```
+
+Then run `plasma-center-kickoff --set`. It's a short script, so feel free to read it before running it with sudo.
 
 ## Usage
 
